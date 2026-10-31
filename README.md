@@ -1,350 +1,346 @@
-# Pumpkin Demon Eyes – animierte Dämonenaugen für den Halloween-Kürbis
+# Pumpkin Demon Eyes – animated demon eyes for a Halloween pumpkin
 
-Zwei runde 1,28"-TFTs (GC9A01, 240 × 240) an einem **Seeed Studio XIAO ESP32-C3** zeigen zwei
-leuchtende, dämonische Augen. Sie blinzeln, schauen umher, starren, glühen bösartig auf und
-schlafen ein. Das alles läuft autonom, ohne Sensoren und ohne WLAN.
+**English** | [Deutsch](README.de.md)
 
-Die Augen werden **vollständig prozedural** gezeichnet: Jeder Pixel wird aus Formeln
-berechnet (Lidkurven, Ellipsen, Farbverläufe), es gibt keine GIFs, Bitmaps oder Bildsequenzen.
-Position, Größe, Drehung und Spiegelung jedes Auges stellst du **ausschließlich in
-`src/Config.h`** ein, passend zur Geometrie deines 3D-gedruckten Kürbisses.
+Two round 1.28" TFTs (GC9A01, 240 × 240) driven by a **Seeed Studio XIAO ESP32-C3** show two
+glowing, demonic eyes. They blink, look around, stare, flare up in an evil glare and fall
+asleep, fully autonomously, with no sensors and no WiFi.
 
-![Zustände der Augen](docs/preview_states.png)
+The eyes are drawn **entirely procedurally**: every pixel is computed from formulas (lid
+curves, ellipses, colour gradients). There are no GIFs, bitmaps or image sequences.
+Position, size, rotation and mirroring of each eye are set **exclusively in `src/Config.h`**,
+so you can match the geometry of your 3D-printed pumpkin.
 
-*Bild: am PC berechnete Vorschau des Renderers, kein Foto. Je Paar links Display 1, rechts
-Display 2, mit runder Maske wie auf dem Glas.*
+![Eye states](docs/preview_states.png)
+
+*Image: renderer preview computed on a PC, not a photo. In each pair, display 1 is on the left
+and display 2 on the right, with a round mask like the glass.*
 
 ---
 
-## Inhalt
+## Contents
 
-1. [Stand des Projekts](#1-stand-des-projekts)
+1. [Project status](#1-project-status)
 2. [Hardware](#2-hardware)
-3. [Anschlussplan und Pinbelegung](#3-anschlussplan-und-pinbelegung)
-4. [Versorgungsspannung und Pegel](#4-versorgungsspannung-und-pegel)
-5. [Warum diese Pins? (Strapping-Pins, SPI-Takt)](#5-warum-diese-pins)
-6. [Bibliotheksauswahl](#6-bibliotheksauswahl)
-7. [Installation, Kompilieren, Upload](#7-installation-kompilieren-upload)
-8. [Betriebsmodi: Test, Kalibrierung, Animation](#8-betriebsmodi)
-9. [Augen ausrichten – nur über `Config.h`](#9-augen-ausrichten)
-10. [Farben, Leuchten, Animation anpassen](#10-farben-leuchten-animation)
-11. [Software-Architektur](#11-software-architektur)
-12. [Rendering, Performance, Speicher](#12-rendering-performance-speicher)
-13. [Bekannte Einschränkungen](#13-bekannte-einschränkungen)
+3. [Wiring and pinout](#3-wiring-and-pinout)
+4. [Supply voltage and logic levels](#4-supply-voltage-and-logic-levels)
+5. [Why these pins? (strapping pins, SPI clock)](#5-why-these-pins)
+6. [Choice of library](#6-choice-of-library)
+7. [Installation, building, uploading](#7-installation-building-uploading)
+8. [Operating modes: test, calibration, animation](#8-operating-modes)
+9. [Aligning the eyes – via `Config.h` only](#9-aligning-the-eyes)
+10. [Colours, glow, animation](#10-colours-glow-animation)
+11. [Software architecture](#11-software-architecture)
+12. [Rendering, performance, memory](#12-rendering-performance-memory)
+13. [Known limitations](#13-known-limitations)
 
 ---
 
-## 1. Stand des Projekts
+## 1. Project status
 
-| Punkt | Status |
+| Item | Status |
 |---|---|
-| PlatformIO-Build (`pio run`) | **erfolgreich**: RAM 33 220 B (10,1 %), Flash 372 030 B (28,4 %). Auch mit `-Wall -Wextra -Wformat -Wsign-compare` keine Warnungen im Projektcode. |
-| Test auf echter Hardware | **erfolgreich**: XIAO ESP32-C3 mit zwei GC9A01-Modulen, gemeinsamer SPI-Bus, gemeinsames DC/RST |
-| Bildrate | flüssig mit dem Standard-Limit von **24 FPS** (`TARGET_FPS`), SPI-Takt 40 MHz |
+| PlatformIO build (`pio run`) | **successful**: RAM 33,220 B (10.1 %), flash 372,030 B (28.4 %). No warnings in the project code, even with `-Wall -Wextra -Wformat -Wsign-compare`. |
+| Test on real hardware | **successful**: XIAO ESP32-C3 with two GC9A01 modules, shared SPI bus, shared DC/RST |
+| Frame rate | smooth at the default limit of **24 FPS** (`TARGET_FPS`), SPI clock 40 MHz |
 
-Bei einem neuen Aufbau nach dem ersten Flashen zuerst den
-[Hardwaretest](#81-hardwaretest-appmodehardwaretest) laufen lassen.
+On a new build, run the [hardware test](#81-hardware-test-appmodehardwaretest) first after
+flashing.
 
 ---
 
 ## 2. Hardware
 
-| Komponente | Details |
+| Component | Details |
 |---|---|
-| Mikrocontroller | Seeed Studio XIAO ESP32-C3: RISC-V Single-Core, 160 MHz, 400 KB SRAM, 4 MB Flash, **keine FPU** |
-| Display 1 (linkes Auge) | 1,28" rund, GC9A01, 240 × 240, 4-Draht-SPI |
-| Display 2 (rechtes Auge) | identisch |
-| Versorgung | USB-C (5 V, z. B. Powerbank) |
+| Microcontroller | Seeed Studio XIAO ESP32-C3: RISC-V single core, 160 MHz, 400 KB SRAM, 4 MB flash, **no FPU** |
+| Display 1 (left eye) | 1.28" round, GC9A01, 240 × 240, 4-wire SPI |
+| Display 2 (right eye) | identical |
+| Power | USB-C (5 V, e.g. a power bank) |
 
-„Links“ und „rechts“ meinen in diesem Projekt immer die Sicht eines **Betrachters vor dem
-Kürbis**. Display 1 ist das linke, Display 2 das rechte Auge.
+In this project, "left" and "right" always mean the view of a **person standing in front of the
+pumpkin**. Display 1 is the left eye, display 2 the right eye.
 
 ---
 
-## 3. Anschlussplan und Pinbelegung
+## 3. Wiring and pinout
 
-Beide Displays hängen an **einem gemeinsamen SPI-Bus**. SCK, MOSI, DC und RST sind gemeinsam,
-**jedes Display hat seine eigene CS-Leitung**. MISO wird nicht benötigt, weil die Displays nur
-beschrieben werden.
+Both displays share **one SPI bus**. SCK, MOSI, DC and RST are shared, and **each display has
+its own CS line**. MISO is not needed because the displays are only written to.
 
-> Die GC9A01-Module beschriften die SPI-Leitungen oft wie I²C: **SCL = SPI-Takt (SCK)**,
-> **SDA = SPI-Daten (MOSI)**. Mit I²C hat das nichts zu tun.
+> GC9A01 modules often label the SPI lines like I²C: **SCL = SPI clock (SCK)**,
+> **SDA = SPI data (MOSI)**. This has nothing to do with I²C.
 
-### Display 1 – linkes Auge
+### Display 1 – left eye
 
-| Display-Pin | XIAO-Pin | GPIO | Bemerkung |
+| Display pin | XIAO pin | GPIO | Note |
 |---|---|---|---|
-| VCC | 3V3 | – | siehe [Abschnitt 4](#4-versorgungsspannung-und-pegel) |
+| VCC | 3V3 | – | see [section 4](#4-supply-voltage-and-logic-levels) |
 | GND | GND | – | |
-| SCL (SCK) | D4 | GPIO6 | **gemeinsam** mit Display 2 |
-| SDA (MOSI) | D5 | GPIO7 | **gemeinsam** mit Display 2 |
-| CS | D1 | GPIO3 | nur Display 1 |
-| DC | D2 | GPIO4 | **gemeinsam** mit Display 2 |
-| RST / RES | D3 | GPIO5 | **gemeinsam** mit Display 2 |
-| BL / BLK (falls vorhanden) | D7 | GPIO20 | optional, standardmäßig aus (`PIN_BACKLIGHT = -1`), siehe Hinweis unten |
+| SCL (SCK) | D4 | GPIO6 | **shared** with display 2 |
+| SDA (MOSI) | D5 | GPIO7 | **shared** with display 2 |
+| CS | D1 | GPIO3 | display 1 only |
+| DC | D2 | GPIO4 | **shared** with display 2 |
+| RST / RES | D3 | GPIO5 | **shared** with display 2 |
+| BL / BLK (if present) | D7 | GPIO20 | optional, off by default (`PIN_BACKLIGHT = -1`), see note below |
 
-### Display 2 – rechtes Auge
+### Display 2 – right eye
 
-| Display-Pin | XIAO-Pin | GPIO | Bemerkung |
+| Display pin | XIAO pin | GPIO | Note |
 |---|---|---|---|
 | VCC | 3V3 | – | |
 | GND | GND | – | |
-| SCL (SCK) | D4 | GPIO6 | gemeinsam |
-| SDA (MOSI) | D5 | GPIO7 | gemeinsam |
-| CS | **D10** | **GPIO10** | nur Display 2 |
-| DC | D2 | GPIO4 | gemeinsam |
-| RST / RES | D3 | GPIO5 | gemeinsam |
-| BL / BLK (falls vorhanden) | D7 | GPIO20 | optional, gemeinsam |
+| SCL (SCK) | D4 | GPIO6 | shared |
+| SDA (MOSI) | D5 | GPIO7 | shared |
+| CS | **D10** | **GPIO10** | display 2 only |
+| DC | D2 | GPIO4 | shared |
+| RST / RES | D3 | GPIO5 | shared |
+| BL / BLK (if present) | D7 | GPIO20 | optional, shared |
 
-### Übersicht aller GPIOs
+### All GPIOs at a glance
 
-| XIAO | GPIO | Verwendung | Hinweis |
+| XIAO | GPIO | Use | Note |
 |---|---|---|---|
-| D0 | GPIO2 | frei (nur `RST` rechts bei getrennten Leitungen) | **Strapping-Pin** |
-| D1 | GPIO3 | CS Display 1 | |
-| D2 | GPIO4 | DC (beide) | |
-| D3 | GPIO5 | RST (beide) | |
-| D4 | GPIO6 | SPI SCK (beide) | nativer FSPICLK-Pin (IO_MUX) |
-| D5 | GPIO7 | SPI MOSI (beide) | nativer FSPID-Pin (IO_MUX) |
-| D6 | GPIO21 | frei (nur `DC` rechts bei getrennten Leitungen) | UART-TX, zeigt beim Booten das ROM-Log |
-| D7 | GPIO20 | Backlight (optional) | UART-RX, frei, weil Serial über USB läuft |
-| D8 | GPIO8 | **frei** | Strapping-Pin |
-| D9 | GPIO9 | **frei** | Strapping-Pin, BOOT-Taster |
-| D10 | GPIO10 | CS Display 2 | |
+| D0 | GPIO2 | free (right `RST` only with separate lines) | **strapping pin** |
+| D1 | GPIO3 | CS display 1 | |
+| D2 | GPIO4 | DC (both) | |
+| D3 | GPIO5 | RST (both) | |
+| D4 | GPIO6 | SPI SCK (both) | native FSPICLK pin (IO_MUX) |
+| D5 | GPIO7 | SPI MOSI (both) | native FSPID pin (IO_MUX) |
+| D6 | GPIO21 | free (right `DC` only with separate lines) | UART TX, prints the ROM log at boot |
+| D7 | GPIO20 | backlight (optional) | UART RX, free because Serial runs over USB |
+| D8 | GPIO8 | **free** | strapping pin |
+| D9 | GPIO9 | **free** | strapping pin, BOOT button |
+| D10 | GPIO10 | CS display 2 | |
 
-Alle Pins stehen zentral in `src/Config.h` (`PIN_SPI_SCLK`, `PIN_SPI_MOSI`, `PIN_TFT_CS_LEFT`,
-`PIN_TFT_CS_RIGHT`, `PIN_TFT_DC`, `PIN_TFT_RST`, `PIN_BACKLIGHT`, …).
+All pins are defined in one place in `src/Config.h` (`PIN_SPI_SCLK`, `PIN_SPI_MOSI`,
+`PIN_TFT_CS_LEFT`, `PIN_TFT_CS_RIGHT`, `PIN_TFT_DC`, `PIN_TFT_RST`, `PIN_BACKLIGHT`, …).
 
-### Skizze
+### Diagram
 
 ```
-                 XIAO ESP32-C3 (Draufsicht, USB oben)
+                 XIAO ESP32-C3 (top view, USB up)
                       ┌──────[USB-C]──────┐
-     (frei)   D0/GPIO2│●                 ●│5V
-  CS Disp.1   D1/GPIO3│●                 ●│GND ──────────── GND  Disp.1 + Disp.2
-  DC beide    D2/GPIO4│●                 ●│3V3 ──────────── VCC  Disp.1 + Disp.2
-  RST beide   D3/GPIO5│●                 ●│D10/GPIO10  CS Disp.2
-  SCK beide   D4/GPIO6│●                 ●│D9/GPIO9    (frei, BOOT)
-  MOSI beide  D5/GPIO7│●                 ●│D8/GPIO8    (frei, Strapping)
-     (frei)  D6/GPIO21│●                 ●│D7/GPIO20   BL beide (optional)
+     (free)   D0/GPIO2│●                 ●│5V
+  CS disp.1   D1/GPIO3│●                 ●│GND ──────────── GND  disp.1 + disp.2
+  DC both     D2/GPIO4│●                 ●│3V3 ──────────── VCC  disp.1 + disp.2
+  RST both    D3/GPIO5│●                 ●│D10/GPIO10  CS disp.2
+  SCK both    D4/GPIO6│●                 ●│D9/GPIO9    (free, BOOT)
+  MOSI both   D5/GPIO7│●                 ●│D8/GPIO8    (free, strapping)
+     (free)  D6/GPIO21│●                 ●│D7/GPIO20   BL both (optional)
                       └───────────────────┘
 ```
 
-### Getrennte DC- oder RST-Leitungen (optional)
+### Separate DC or RST lines (optional)
 
-Gemeinsame DC/RST-Leitungen sind der Standard und funktionieren mit dieser Firmware. Wer sie
-trotzdem trennen will, setzt in `Config.h` `SHARED_DC = false` und/oder `SHARED_RST = false`.
-Display 2 nutzt dann `PIN_TFT_DC_RIGHT` (D6/GPIO21) bzw. `PIN_TFT_RST_RIGHT` (D0/GPIO2).
-
----
-
-## 4. Versorgungsspannung und Pegel
-
-**Prüfe dein konkretes Modul, bevor du Spannung anlegst.** GC9A01-Module gibt es in mehreren
-Varianten:
-
-- **Mit Spannungsregler** (häufig ein kleiner SOT-23-Regler, oft mit „662K“ beschriftet, auf der
-  Rückseite; das Modul ist dann meist mit „3.3V/5V“ beschriftet): VCC darf 3,3 V oder 5 V
-  bekommen. Waveshare gibt für sein 1,28"-Modul ebenfalls 3,3 V/5 V an.
-- **Ohne Regler**: VCC geht direkt an das Panel. Hier sind **nur 3,3 V** zulässig.
-
-Empfehlung: **VCC an den 3V3-Pin des XIAO**. Das funktioniert mit beiden Varianten. Zwei
-Module ziehen zusammen typischerweise unter 100 mA (Waveshare nennt rund 31 mA pro Modul), der
-3,3-V-Regler des XIAO liefert genug Strom, solange der ESP32-C3 ohne WLAN läuft.
-
-**Logikpegel:** Der ESP32-C3 arbeitet mit 3,3-V-Logik, und die Logikeingänge des GC9A01 sind
-für 3,3 V ausgelegt. Die Signalleitungen der Module sind in der Regel
-**nicht 5-V-tolerant**. Deshalb nie einen 5-V-Mikrocontroller ohne Pegelwandler anschließen.
-Pegelwandler sind beim XIAO **nicht nötig**.
-
-**Hintergrundbeleuchtung (BL/BLK):**
-- Viele Module schalten die LED über einen Transistor und haben einen Pull-up am BL-Pin. Lässt
-  du BL offen, leuchtet das Display einfach. Das ist der Standard (`PIN_BACKLIGHT = -1`).
-- Willst du die Helligkeit per PWM steuern, verbinde beide BL-Pins mit D7 und setze
-  `PIN_BACKLIGHT = 20`. **Achtung:** Hat dein
-  Modul **keinen** Transistor und führt BL direkt auf die LED, darf BL nicht direkt an einen
-  GPIO. Nimm dann einen kleinen Transistor oder lege BL an 3V3.
-
-**Versorgung im Kürbis:** USB-C-Powerbank am XIAO. Manche Powerbanks schalten bei sehr kleinem
-Strom ab, mit zwei leuchtenden Displays ist das aber selten ein Problem.
+Shared DC/RST lines are the default and work with this firmware. If you still want to separate
+them, set `SHARED_DC = false` and/or `SHARED_RST = false` in `Config.h`. Display 2 then uses
+`PIN_TFT_DC_RIGHT` (D6/GPIO21) or `PIN_TFT_RST_RIGHT` (D0/GPIO2).
 
 ---
 
-## 5. Warum diese Pins?
+## 4. Supply voltage and logic levels
 
-**Strapping-Pins gemieden.** Laut Seeed-Wiki und ESP32-C3-Datenblatt sind GPIO2, GPIO8 und
-GPIO9 Strapping-Pins. Ihr Pegel beim Reset entscheidet über den Boot-Modus. GPIO9 hängt am
-BOOT-Taster: Low beim Start bedeutet Download-Modus. Ein angeschlossenes Display könnte diese
-Pegel verfälschen und den Start oder den Upload verhindern. Deshalb nutzt die
-Standardbelegung **keinen** dieser drei Pins. Insbesondere liegt SCK **nicht** auf D8/GPIO8,
-obwohl das Seeed-Pinout dort „SCK“ angibt.
+**Check your specific module before applying power.** GC9A01 modules come in several
+variants:
 
-**Native SPI-Pins für den Takt.** Beim ESP32-C3 sind GPIO6 (FSPICLK) und GPIO7 (FSPID) die
-festen IO_MUX-Pins des SPI2-Controllers. Laut ESP-IDF-Doku sind über IO_MUX 80 MHz möglich, über
-die frei routbare GPIO-Matrix (D8/D10) nur 40 MHz. Die Firmware startet mit sicheren
-**40 MHz**. Die native Pinwahl lässt aber den Weg zu 80 MHz offen
-([Abschnitt 12.3](#123-turbo-80-mhz-spi-ungetestet)).
+- **With a voltage regulator** (often a small SOT-23 regulator marked "662K" on the back; the
+  module is then usually labelled "3.3V/5V"): VCC may be 3.3 V or 5 V. Waveshare also specifies
+  3.3 V/5 V for its 1.28" module.
+- **Without a regulator**: VCC goes straight to the panel. Only **3.3 V** is allowed here.
 
-**MISO nicht verwendet.** Die Displays werden nur beschrieben. D9 (Strapping-Pin + BOOT) bleibt
-dadurch frei.
+Recommendation: **connect VCC to the XIAO's 3V3 pin**. This works with both variants. Two
+modules typically draw less than 100 mA together (Waveshare states about 31 mA per module), and
+the XIAO's 3.3 V regulator supplies enough current as long as the ESP32-C3 runs without WiFi.
+
+**Logic levels:** The ESP32-C3 uses 3.3 V logic, and the GC9A01's logic inputs are designed for
+3.3 V. The modules' signal lines are usually **not 5 V tolerant**, so never connect a 5 V
+microcontroller without a level shifter. With the XIAO, **no** level shifters are needed.
+
+**Backlight (BL/BLK):**
+- Many modules switch the LED through a transistor and have a pull-up on the BL pin. If you
+  leave BL open, the display simply lights up. That is the default (`PIN_BACKLIGHT = -1`).
+- If you want PWM brightness control, connect both BL pins to D7 and set
+  `PIN_BACKLIGHT = 20`. **Caution:** if your module has **no** transistor and BL drives the LED
+  directly, do not connect BL directly to a GPIO. Use a small transistor or tie BL to 3V3.
+
+**Power inside the pumpkin:** a USB-C power bank on the XIAO. Some power banks switch off at
+very low current, but with two glowing displays this is rarely a problem.
 
 ---
 
-## 6. Bibliotheksauswahl
+## 5. Why these pins?
 
-**Gewählt: [LovyanGFX](https://github.com/lovyan03/LovyanGFX) 1.2.35.**
-Die verwendeten Klassen und Funktionen habe ich im Quellcode dieser Version nachgeschlagen.
+**Strapping pins avoided.** According to the Seeed wiki and the ESP32-C3 datasheet, GPIO2, GPIO8
+and GPIO9 are strapping pins. Their level at reset decides the boot mode. GPIO9 is connected to
+the BOOT button: low at start-up means download mode. A connected display could pull these
+levels and prevent booting or uploading. That is why the default pinout uses **none** of these
+three pins. In particular, SCK is **not** on D8/GPIO8, even though the Seeed pinout labels it
+"SCK".
 
-| Anforderung | LovyanGFX |
+**Native SPI pins for the clock.** On the ESP32-C3, GPIO6 (FSPICLK) and GPIO7 (FSPID) are the
+fixed IO_MUX pins of the SPI2 controller. According to the ESP-IDF documentation, IO_MUX allows
+80 MHz, while the freely routable GPIO matrix (D8/D10) is limited to 40 MHz. The firmware starts
+at a safe **40 MHz**, but the native pin choice keeps the door open for 80 MHz
+([section 12.3](#123-turbo-80-mhz-spi-untested)).
+
+**MISO not used.** The displays are write-only, which leaves D9 (strapping pin + BOOT) free.
+
+---
+
+## 6. Choice of library
+
+**Chosen: [LovyanGFX](https://github.com/lovyan03/LovyanGFX) 1.2.35.**
+All classes and functions used were checked against the source code of this version.
+
+| Requirement | LovyanGFX |
 |---|---|
-| GC9A01 | eigene Panelklasse `lgfx::Panel_GC9A01` (mit GC9A01-spezifischem Init und „kein NOP“-Workaround) |
-| ESP32-C3 | `lgfx::Bus_SPI` mit GDMA-DMA für den C3 |
-| Zwei unabhängige Displays | beliebig viele `LGFX_Device`-Instanzen, komplett **im Code** konfiguriert, keine globale Setup-Datei |
-| Gemeinsamer SPI-Bus | beide Panels können **dasselbe** `Bus_SPI`-Objekt nutzen (gemeinsames DC) |
-| Effiziente Übertragung | `setWindow()` + `writePixelsDMA()` schicken eigene Pixelpuffer per DMA direkt, ohne Kopie |
-| Formen und Text | `drawLine`, `drawCircle`, `fillTriangle`, `drawString` … für Test- und Kalibrierbilder |
-| RAM | kein Framebuffer nötig, LovyanGFX reserviert nur einen DMA-Zeilenpuffer (≈ 480 B) pro Panel |
+| GC9A01 | dedicated panel class `lgfx::Panel_GC9A01` (with GC9A01-specific init and "no NOP" workaround) |
+| ESP32-C3 | `lgfx::Bus_SPI` with GDMA DMA for the C3 |
+| Two independent displays | any number of `LGFX_Device` instances, configured entirely **in code**, no global setup file |
+| Shared SPI bus | both panels can use **the same** `Bus_SPI` object (shared DC) |
+| Efficient transfer | `setWindow()` + `writePixelsDMA()` send your own pixel buffers via DMA directly, without copying |
+| Shapes and text | `drawLine`, `drawCircle`, `fillTriangle`, `drawString` … for test and calibration screens |
+| RAM | no frame buffer needed; LovyanGFX only reserves a DMA line buffer (≈ 480 B) per panel |
 
-**Verworfen:**
-- **TFT_eSPI**: unterstützt GC9A01 und den ESP32-C3. Die Konfiguration steckt aber global in
-  `User_Setup.h` und beschreibt genau *ein* Display. Zwei Displays gehen nur über manuelles
-  CS-Umschalten, was laut Autor nicht vorgesehen ist. Positionen und Rotationen pro Display
-  lassen sich so kaum sauber getrennt pflegen.
-- **Arduino_GFX**: kann GC9A01 und mehrere Displays ebenfalls. LovyanGFX habe ich bevorzugt, weil
-  sich dort die DMA-Ausgabe eigener Puffer und das Verhalten bei geteiltem Bus im Quellcode
-  vollständig nachvollziehen ließen.
+**Rejected:**
+- **TFT_eSPI**: supports the GC9A01 and the ESP32-C3. However, its configuration lives globally
+  in `User_Setup.h` and describes exactly *one* display. Two displays only work by toggling CS
+  manually, which the author says is not intended. Per-display positions and rotations would be
+  hard to keep cleanly separated.
+- **Arduino_GFX**: also supports the GC9A01 and multiple displays. LovyanGFX was preferred
+  because its DMA output of user buffers and its behaviour on a shared bus could be fully
+  traced in the source code.
 
-**Zusätzliche Konfigurationsdatei?** Nein. LovyanGFX wird in `src/DisplayManager.cpp`
-konfiguriert, alle Werte kommen aus `src/Config.h`.
+**Extra configuration file?** No. LovyanGFX is configured in `src/DisplayManager.cpp`, and all
+values come from `src/Config.h`.
 
-**Drei Eigenheiten, die die Firmware berücksichtigt** (im Quellcode der Bibliothek geprüft):
-1. **Gemeinsamer Reset:** LovyanGFX zieht beim `init()` jedes Panels dessen RST-Pin. Bei einer
-   gemeinsamen RST-Leitung würde das Initialisieren von Display 2 Display 1 wieder zurücksetzen.
-   Die Panels bekommen deshalb `pin_rst = -1`, und der `DisplayManager` erzeugt **einen**
-   Reset-Puls für beide.
-2. **Gemeinsames DC:** Beide Panels teilen sich **ein** `Bus_SPI`-Objekt. So bleibt der
-   DMA-Zustand des Busses konsistent.
-3. **SPI-Sperre:** Die Transaktionssperre des Arduino-Cores ist nicht rekursiv. Es darf nie für
-   beide Displays gleichzeitig eine Transaktion offen sein, sonst hängt das Programm. Der
-   `DisplayManager` schließt deshalb immer erst die eine Transaktion, bevor er die andere öffnet.
+**Three quirks the firmware takes care of** (verified in the library source):
+1. **Shared reset:** LovyanGFX pulls each panel's RST pin during `init()`. With a shared RST
+   line, initialising display 2 would reset display 1 again. The panels therefore get
+   `pin_rst = -1`, and the `DisplayManager` generates **one** reset pulse for both.
+2. **Shared DC:** Both panels share **one** `Bus_SPI` object, which keeps the bus's DMA state
+   consistent.
+3. **SPI lock:** The Arduino core's transaction lock is not recursive. A transaction must never
+   be open on both displays at the same time, otherwise the program hangs. The `DisplayManager`
+   therefore always closes one transaction before opening the other.
 
 ---
 
-## 7. Installation, Kompilieren, Upload
+## 7. Installation, building, uploading
 
 ### 7.1 PlatformIO
 
-1. [Visual Studio Code](https://code.visualstudio.com/) installieren.
-2. In VS Code die Erweiterung **PlatformIO IDE** installieren.
-3. Den Ordner `Pumpkin-Demon-Eyes` in VS Code öffnen (*File → Open Folder*).
+1. Install [Visual Studio Code](https://code.visualstudio.com/).
+2. Install the **PlatformIO IDE** extension in VS Code.
+3. Open the `Pumpkin-Demon-Eyes` folder in VS Code (*File → Open Folder*).
 
-### 7.2 Bibliotheken
+### 7.2 Libraries
 
-Nichts manuell installieren: `platformio.ini` enthält
+Nothing to install manually: `platformio.ini` contains
 
 ```ini
 lib_deps = lovyan03/LovyanGFX@^1.2.35
 ```
 
-PlatformIO lädt LovyanGFX beim ersten Build automatisch herunter. Die Plattform `espressif32`
-(6.x, Arduino-Core 2.0.17) wird ebenfalls automatisch installiert.
+PlatformIO downloads LovyanGFX automatically on the first build. The `espressif32` platform
+(6.x, Arduino core 2.0.17) is installed automatically as well.
 
-### 7.3 Kompilieren
+### 7.3 Building
 
-In der PlatformIO-Leiste auf **Build** (✓) klicken oder im Terminal:
+Click **Build** (✓) in the PlatformIO toolbar, or in a terminal:
 
 ```bash
 pio run
 ```
 
-### 7.4 Upload auf den XIAO ESP32-C3
+### 7.4 Uploading to the XIAO ESP32-C3
 
-XIAO per USB-C anschließen, dann **Upload** (→) oder:
+Connect the XIAO via USB-C, then **Upload** (→), or:
 
 ```bash
 pio run -t upload
 ```
 
-Erscheint kein Port oder schlägt der Upload fehl: **BOOT-Taster halten, RESET kurz drücken,
-BOOT loslassen** und erneut hochladen. Danach einmal RESET drücken.
+If no port shows up or the upload fails: **hold BOOT, briefly press RESET, release BOOT** and
+upload again. Then press RESET once.
 
-### 7.5 Serieller Monitor
+### 7.5 Serial monitor
 
 ```bash
 pio device monitor
 ```
 
-Die Ausgabe läuft über USB-CDC mit 115200 Baud. Du siehst den Init-Bericht, die
-Geometrie-Auswertung beider Augen, jeden Zustandswechsel und alle 5 s eine Statistik:
+Output runs over USB CDC at 115200 baud. You will see the init report, the geometry check of
+both eyes, every state change and, every 5 s, a statistics line:
 
 ```
-[stats] 30.0 fps | frame avg 27.3 ms max 29.8 ms | render L 13.5 ms R 13.6 ms | heap free … | IDLE
+[stats] 24.0 fps | frame avg 30.1 ms max 33.8 ms | render L 14.8 ms R 14.9 ms | heap free … | IDLE
 ```
 
-*(Die Zahlen sind ein Beispiel für das Format, keine Messung.)*
+*(The numbers only illustrate the format; they are not a measurement.)*
 
 ---
 
-## 8. Betriebsmodi
+## 8. Operating modes
 
-Den Modus wählst du in `src/Config.h`:
+Select the mode in `src/Config.h`:
 
 ```cpp
-constexpr AppMode APP_MODE = AppMode::Animation;   // oder HardwareTest, Calibration
+constexpr AppMode APP_MODE = AppMode::Animation;   // or HardwareTest, Calibration
 ```
 
-### 8.1 Hardwaretest (`AppMode::HardwareTest`)
+### 8.1 Hardware test (`AppMode::HardwareTest`)
 
-Ein Durchlauf in sechs Schritten, jeder Schritt wird seriell angekündigt. Danach beginnt der Test
-von vorn.
+One run of six steps, each announced on the serial monitor. Afterwards the test starts over.
 
-| Schritt | Anzeige | Was du prüfst |
+| Step | Display shows | What you check |
 |---|---|---|
-| 1 | Display 1 **rot**, Display 2 schwarz | Display 1 und seine CS-Leitung (GPIO3) |
-| 2 | Display 1 schwarz, Display 2 **grün** | Display 2 und seine CS-Leitung (GPIO10) |
-| 3 | Display 1 **blau**, Display 2 **gelb** | unabhängige Ansteuerung, Farbreihenfolge (`DISPLAY_RGB_ORDER`), Invertierung (`DISPLAY_INVERT`) |
-| 4 | Pfeil „TOP“, „L1“/„R2“, gelbes Quadrat oben links | Display-Rotation (`DISPLAY_ROTATION_*`) |
-| 5 | Auge + Kalibrier-Overlay | Position, Radius, Augen-Rotation, Spiegelung |
-| 6 | Animations-Demo aller Zustände | IDLE, LOOK_AROUND, BLINK, DOUBLE_BLINK, STARE, EVIL_GLARE, SLEEP, WAKE_UP inkl. FPS-Ausgabe |
+| 1 | display 1 **red**, display 2 black | display 1 and its CS line (GPIO3) |
+| 2 | display 1 black, display 2 **green** | display 2 and its CS line (GPIO10) |
+| 3 | display 1 **blue**, display 2 **yellow** | independent control, colour order (`DISPLAY_RGB_ORDER`), inversion (`DISPLAY_INVERT`) |
+| 4 | "TOP" arrow, "L1"/"R2", yellow square top left | display rotation (`DISPLAY_ROTATION_*`) |
+| 5 | eye + calibration overlay | position, radius, eye rotation, mirroring |
+| 6 | animation demo of all states | IDLE, LOOK_AROUND, BLINK, DOUBLE_BLINK, STARE, EVIL_GLARE, SLEEP, WAKE_UP incl. FPS output |
 
-Typische Fehlerbilder:
-- **Beide Displays zeigen dasselbe:** CS-Leitungen vertauscht oder verbunden.
-- **Ein Display bleibt dunkel:** CS, VCC/GND oder Backlight dieses Displays prüfen.
-- **Farben invertiert (schwarz wird weiß):** `DISPLAY_INVERT` umschalten.
-- **Rot und Blau vertauscht:** `DISPLAY_RGB_ORDER = true`.
-- **Nur Rauschen:** SCK/MOSI vertauscht oder `SPI_WRITE_FREQ_HZ` zu hoch.
+Typical symptoms:
+- **Both displays show the same image:** CS lines swapped or connected together.
+- **One display stays dark:** check CS, VCC/GND or the backlight of that display.
+- **Colours inverted (black turns white):** toggle `DISPLAY_INVERT`.
+- **Red and blue swapped:** `DISPLAY_RGB_ORDER = true`.
+- **Only noise:** SCK/MOSI swapped or `SPI_WRITE_FREQ_HZ` too high.
 
-### 8.2 Kalibrierung (`AppMode::Calibration`)
+### 8.2 Calibration (`AppMode::Calibration`)
 
-Für die Montage im Kürbis. Jedes Display zeigt ein **ruhendes Auge** mit Overlay. Alle 1,8 s
-wechselt die Blickrichtung (Mitte, links, rechts, oben, unten, diagonal, halb geschlossen,
-„evil“), so siehst du auch die Bewegungsgrenzen der Pupille.
+For mounting in the pumpkin. Each display shows a **still eye** with an overlay. Every 1.8 s
+the gaze direction changes (centre, left, right, up, down, diagonal, half closed, "evil"), so
+you can also see the pupil's movement limits.
 
-| Farbe | Element |
+| Colour | Element |
 |---|---|
-| grau | sichtbarer Kreis des Displays, Display-Mittelkreuz, Display-Achsen (nicht gedreht) |
-| cyan (links) / magenta (rechts) | Augenmittelpunkt (Kreis), Augenachsen (**drehen mit**), Augenumriss, Pupillen-Bewegungsgrenze (gedimmt) |
-| Pfeil an der Augenachse | lokale **+x**-Richtung = innerer Augenwinkel (Nasenseite) des Designs; zeigt bei Spiegelung zur anderen Seite |
-| Dreieck über dem Auge | „oben“ des Auges |
-| orange | Bogen von der Display-Waagerechten zur Augenachse = eingestellte Augen-Rotation |
-| gelb | Begrenzungsrahmen des tatsächlich gezeichneten Bereichs |
-| Text | aktuelle Werte `c=`, `off=`, `r=`, `scale=`, `rot=`, `mirror=` |
+| grey | visible circle of the display, display centre cross, display axes (not rotated) |
+| cyan (left) / magenta (right) | eye centre (circle), eye axes (**rotate with the eye**), eye outline, pupil travel limit (dimmed) |
+| arrow on the eye axis | local **+x** direction = inner corner (nose side) of the design; points the other way when mirrored |
+| triangle above the eye | "top" of the eye |
+| orange | arc from the display horizontal to the eye axis = configured eye rotation |
+| yellow | bounding box of the area actually drawn |
+| text | current values `c=`, `off=`, `r=`, `scale=`, `rot=`, `mirror=` |
 
-Zusätzlich gibt die Firmware seriell für jedes Auge den Renderbereich aus. Sie **warnt**, wenn
-das Auge über den sichtbaren Kreis hinausragt, also abgeschnitten wird.
+The firmware also prints the render area of each eye on the serial monitor. It **warns** if
+the eye extends beyond the visible circle, i.e. gets cut off.
 
 ### 8.3 Animation (`AppMode::Animation`)
 
-Der Normalbetrieb. Nach dem Einschalten „erwacht“ der Kürbis (WAKE_UP), danach wechseln die
-Zustände zufällig, aber nach festen Gewichten (siehe [10.4](#104-verhalten-und-zustände)).
+Normal operation. After power-on the pumpkin "wakes up" (WAKE_UP); afterwards the states change
+randomly, but according to fixed weights (see [10.4](#104-behaviour-and-states)).
 
 ---
 
-## 9. Augen ausrichten
+## 9. Aligning the eyes
 
-### 9.1 Die Parameter
+### 9.1 The parameters
 
-Jedes Auge hat in `Config.h` einen eigenen Block:
+Each eye has its own block in `Config.h`:
 
 ```cpp
 constexpr EyeGeometryConfig LEFT_EYE_CONFIG = {
@@ -356,349 +352,344 @@ constexpr EyeGeometryConfig LEFT_EYE_CONFIG = {
 };
 ```
 
-| Parameter | Einheit | Bedeutung |
+| Parameter | Unit | Meaning |
 |---|---|---|
-| `centerX`, `centerY` | Display-Pixel | Nominaler Augenmittelpunkt; 120/120 = Displaymitte |
-| `offsetX`, `offsetY` | Display-Pixel | Montagekorrektur, wird **nach** der Drehung addiert; + = nach rechts/unten |
-| `rotationDeg` | Grad | zusätzliche Drehung des Augenbilds; **+ = im Uhrzeigersinn** |
-| `scale` | Faktor | gleichmäßige Größe (1,0 = Designgröße) |
-| `radiusX` | Augen-Einheiten | halbe Breite der Augenöffnung (Abstand Mitte → Augenwinkel) |
-| `radiusY` | Augen-Einheiten | Höhe des oberen Lidbogens; der untere ist `EYE_LOWER_LID_RATIO` (0,78) davon |
-| `mirrorX`, `mirrorY` | – | spiegelt die **Form** des Auges (schräge Lider, innerer Augenwinkel) |
+| `centerX`, `centerY` | display pixels | nominal eye centre; 120/120 = display centre |
+| `offsetX`, `offsetY` | display pixels | mounting correction, added **after** rotation; + = right/down |
+| `rotationDeg` | degrees | additional rotation of the eye image; **+ = clockwise** |
+| `scale` | factor | uniform size (1.0 = design size) |
+| `radiusX` | eye units | half width of the eye opening (distance centre → eye corner) |
+| `radiusY` | eye units | height of the upper lid arc; the lower one is `EYE_LOWER_LID_RATIO` (0.78) of it |
+| `mirrorX`, `mirrorY` | – | mirrors the eye's **shape** (slanted lids, inner corner) |
 
-**Wie wirken Radius und Skalierung zusammen?** Die Größe auf dem Display ist
-**`radius × scale`**. `radiusX`/`radiusY` bestimmen die **Form** (breit/schmal), `scale`
-vergrößert oder verkleinert das ganze Auge samt Iris, Pupille, Halo und Lidrand. Doppelt oder
-widersprüchlich ist das nicht: Die Form legst du über die Radien fest, das Einpassen über
-`scale`.
+**How do radius and scale work together?** The size on the display is **`radius × scale`**.
+`radiusX`/`radiusY` define the **shape** (wide/narrow); `scale` enlarges or shrinks the whole
+eye including iris, pupil, halo and lid rim. The two do not overlap or contradict each other: use
+the radii for the shape and `scale` for fitting.
 
-**Reihenfolge der Transformation** (lokale Augenkoordinaten → Display), zentral in
-`EyeTransform` (`src/EyeGeometry.cpp`) umgesetzt:
+**Transformation order** (local eye coordinates → display), implemented centrally in
+`EyeTransform` (`src/EyeGeometry.cpp`):
 
-1. lokale Koordinate (u, v), Ursprung = Augenmitte
-2. Spiegelung (`mirrorX`, `mirrorY`)
-3. Skalierung (`scale`)
-4. Rotation (`rotationDeg`, im Uhrzeigersinn)
-5. Verschiebung auf (`centerX + offsetX`, `centerY + offsetY`)
-6. Begrenzung auf das Display und den sichtbaren Kreis
+1. local coordinate (u, v), origin = eye centre
+2. mirroring (`mirrorX`, `mirrorY`)
+3. scaling (`scale`)
+4. rotation (`rotationDeg`, clockwise)
+5. translation to (`centerX + offsetX`, `centerY + offsetY`)
+6. clipping to the display and the visible circle
 
-Blick, Pupille, Blinzeln und Leuchten werden **lokal** berechnet, die Transformation passiert erst
-beim Zeichnen. Deshalb kannst du die Geometrie beliebig ändern, ohne dass sich die Animation
-ändert.
+Gaze, pupil, blinking and glow are all computed **locally**; the transformation only happens
+when drawing. That is why you can change the geometry freely without changing the animation.
 
-### 9.2 Konkrete Beispiele
+### 9.2 Concrete examples
 
-Alle Beispiele ändern **nur** `Config.h`. Danach neu hochladen (`pio run -t upload`).
+All examples change **only** `Config.h`. Upload again afterwards (`pio run -t upload`).
 
-**Linkes Auge 8 Pixel nach oben:**
+**Move the left eye 8 pixels up:**
 ```cpp
 constexpr EyeGeometryConfig LEFT_EYE_CONFIG = {
     120, 120,  0.0f, 1.0f,  100.0f, 78.0f,  0, -8,  false, false };
 //                                           ^^^^ offsetY = -8
 ```
 
-**Rechtes Auge 5 Pixel nach unten:**
+**Move the right eye 5 pixels down:**
 ```cpp
 constexpr EyeGeometryConfig RIGHT_EYE_CONFIG = {
     120, 120,  0.0f, 1.0f,  100.0f, 78.0f,  0, 5,  true, false };
 ```
 
-**Linkes Auge 10° im Uhrzeigersinn, rechtes 15° gegen den Uhrzeigersinn:**
+**Rotate the left eye 10° clockwise and the right eye 15° counter-clockwise:**
 ```cpp
-// links:  rotationDeg = 10.0f      rechts: rotationDeg = -15.0f
+// left:  rotationDeg = 10.0f      right: rotationDeg = -15.0f
 ```
 
-**Ein Auge auf 90 % verkleinern:** `scale = 0.9f`
+**Shrink one eye to 90 %:** `scale = 0.9f`
 
-**Ein Auge etwas breiter, das andere etwas schmaler:**
+**Make one eye a little wider and the other a little narrower:**
 ```cpp
-// links:  radiusX = 106.0f        rechts: radiusX = 94.0f
+// left:  radiusX = 106.0f        right: radiusX = 94.0f
 ```
 
-**Ein Auge horizontal spiegeln:** `mirrorX = true`. Das rechte Auge ist ab Werk gespiegelt, damit
-die schrägen Lider bei EVIL_GLARE symmetrisch zur Nase zeigen.
+**Mirror an eye horizontally:** `mirrorX = true`. The right eye is mirrored by default, so that
+the slanted lids in EVIL_GLARE point symmetrically towards the nose.
 
-**Schräg eingesetzte Displayöffnung** (das ganze Display sitzt z. B. 12° verdreht und 6 px zu
-weit rechts im Kürbis): Gleiche die Drehung mit `rotationDeg = -12.0f` aus und die Verschiebung
-mit `offsetX = -6`. Steht das Display um 90° verdreht, nimm statt eines großen Winkels die
-Display-Rotation (`DISPLAY_ROTATION_*`).
+**Display opening set at an angle** (e.g. the whole display sits 12° rotated and 6 px too far
+right in the pumpkin): compensate the rotation with `rotationDeg = -12.0f` and the offset with
+`offsetX = -6`. If the display is turned by 90°, use the display rotation
+(`DISPLAY_ROTATION_*`) instead of a large angle.
 
-So sieht eine Auswahl dieser Einstellungen aus (am PC berechnete Vorschau):
+A selection of these settings looks like this (preview computed on a PC):
 
-![Geometrie-Varianten](docs/preview_geometry.png)
+![Geometry variants](docs/preview_geometry.png)
 
-### 9.3 Vorgehen nach der Montage
+### 9.3 Procedure after mounting
 
-1. `APP_MODE = AppMode::HardwareTest` setzen und hochladen. Prüfen, dass beide Displays
-   funktionieren und der Pfeil in Schritt 4 nach oben zeigt. Wenn nicht, `DISPLAY_ROTATION_LEFT`
-   bzw. `_RIGHT` ändern.
-2. `APP_MODE = AppMode::Calibration` setzen und hochladen.
-3. Den Kürbis aus Betrachtersicht anschauen:
-   - Mitte des Auges nicht in der Mitte der Öffnung → `offsetX`/`offsetY` ändern.
-   - Augenachse schief zur Öffnung → `rotationDeg` ändern (+ = im Uhrzeigersinn).
-   - Auge zu groß oder klein für die Öffnung → `scale` ändern; Auge zu breit oder zu hoch →
-     `radiusX`/`radiusY` ändern.
-   - Der Pfeil (innerer Augenwinkel) soll bei beiden Augen zur Nase zeigen, sonst `mirrorX`
-     umschalten.
-4. Seriell auf Warnungen achten (`eye area exceeds the visible circle …`).
-5. Wenn alles passt: `APP_MODE = AppMode::Animation`.
+1. Set `APP_MODE = AppMode::HardwareTest` and upload. Check that both displays work and that
+   the arrow in step 4 points up. If not, change `DISPLAY_ROTATION_LEFT` or `_RIGHT`.
+2. Set `APP_MODE = AppMode::Calibration` and upload.
+3. Look at the pumpkin from the viewer's position:
+   - Eye centre not in the middle of the opening → change `offsetX`/`offsetY`.
+   - Eye axis tilted relative to the opening → change `rotationDeg` (+ = clockwise).
+   - Eye too large or small for the opening → change `scale`; eye too wide or too tall →
+     change `radiusX`/`radiusY`.
+   - The arrow (inner corner) should point towards the nose on both eyes; otherwise toggle
+     `mirrorX`.
+4. Watch the serial monitor for warnings (`eye area exceeds the visible circle …`).
+5. When everything fits: `APP_MODE = AppMode::Animation`.
 
-### 9.4 Display-Rotation ≠ Augen-Rotation
+### 9.4 Display rotation ≠ eye rotation
 
-| | Display-Rotation | Augen-Rotation |
+| | Display rotation | Eye rotation |
 |---|---|---|
-| Parameter | `DISPLAY_ROTATION_LEFT`, `DISPLAY_ROTATION_RIGHT` | `rotationDeg` im `EyeGeometryConfig` |
-| Werte | 0–3 = 0/90/180/270° im Uhrzeigersinn, 4–7 = zusätzlich gespiegelt | beliebig, z. B. 7,5° |
-| Wirkung | dreht das ganze Koordinatensystem des Panels (Hardware, `setRotation()` von LovyanGFX) | dreht nur das gezeichnete Auge innerhalb des Displays |
-| Zweck | grobe Einbaulage (Display steht auf dem Kopf, liegt quer) | Feinausrichtung an die Öffnung |
+| Parameter | `DISPLAY_ROTATION_LEFT`, `DISPLAY_ROTATION_RIGHT` | `rotationDeg` in `EyeGeometryConfig` |
+| Values | 0–3 = 0/90/180/270° clockwise, 4–7 = additionally mirrored | any, e.g. 7.5° |
+| Effect | rotates the panel's whole coordinate system (hardware, LovyanGFX `setRotation()`) | rotates only the drawn eye within the display |
+| Purpose | rough mounting orientation (display upside down or sideways) | fine alignment to the opening |
 
-Die Augen-Rotation verändert weder die Display-Ausrichtung noch die SPI-Ausgabe noch die
-Koordinaten von LovyanGFX. Sie existiert nur in der Transformation des Renderers.
+The eye rotation changes neither the display orientation, nor the SPI output, nor the
+LovyanGFX coordinates. It exists only in the renderer's transformation.
 
-**Standardwerte:** `DISPLAY_ROTATION_LEFT = 3` und `DISPLAY_ROTATION_RIGHT = 1`. Das passt zum
-Referenz-Kürbis, in dem beide Displays um 90° gedreht eingebaut sind (links gegen, rechts im
-Uhrzeigersinn). Stehen deine Displays aufrecht, setze beide Werte auf 0. Steht ein Bild auf dem
-Kopf oder seitenverkehrt, tausche bei diesem Display 1 und 3.
+**Defaults:** `DISPLAY_ROTATION_LEFT = 3` and `DISPLAY_ROTATION_RIGHT = 1`. This matches the
+reference pumpkin, in which both displays are mounted turned by 90° (left counter-clockwise,
+right clockwise). If your displays are upright, set both values to 0. If an image is upside
+down or mirrored, swap 1 and 3 for that display.
 
-### 9.5 Spiegelung und Blickrichtung
+### 9.5 Mirroring and gaze direction
 
-Eine Spiegelung kehrt die **Form** um (Lidschräge, innerer Augenwinkel, Lidnaht). Blickrichtung
-und Lichtreflex bleiben dagegen **bildschirmtreu**: Schauen beide Augen „nach rechts“, schauen
-sie auch gespiegelt beide nach rechts, und der Reflex sitzt bei beiden oben links. Dafür
-rechnet `Eye::lookAt()` die gemeinsame Blickrichtung in das lokale System jedes Auges um.
+Mirroring reverses the **shape** (lid slant, inner corner, lid seam). Gaze direction and light
+reflex, however, stay **screen-consistent**: when both eyes look "to the right", they both look
+to the right even when one is mirrored, and the reflex sits at the top left on both.
+`Eye::lookAt()` converts the shared gaze direction into each eye's local frame for this.
 
-Eine reine Drehung verändert die Blickrichtung **nicht** gesondert: Die Pupille bewegt sich im
-lokalen System des gedrehten Auges, so wie es zu einem schräg eingesetzten Auge passt.
+Rotation alone does **not** change the gaze direction separately: the pupil moves in the local
+frame of the rotated eye, as befits an eye mounted at an angle.
 
-`mirrorY` dreht auch die Schließrichtung der Lider um, weil die Lidnaht dann oben liegt. Das ist
-gewollt, wird aber selten gebraucht.
+`mirrorY` also reverses the closing direction of the lids, because the lid seam is then at the
+top. This is intended but rarely needed.
 
-### 9.6 Sichtbarer Bereich
+### 9.6 Visible area
 
-Die Firmware zeichnet nur Pixel innerhalb des Kreises `DISPLAY_VISIBLE_CENTER_X/Y`,
-`DISPLAY_VISIBLE_RADIUS` (Standard 120/120, r = 120). Verdeckt dein Kürbis den Rand, kannst du
-den Radius verkleinern. Liegt ein Auge teilweise außerhalb, wird es sauber abgeschnitten. Es gibt
-keine Speicherzugriffe außerhalb gültiger Bereiche, weil die Zeilenbereiche vorab auf Display und
-Kreis begrenzt werden. Extreme Werte für `scale`/`radius` begrenzt die Firmware automatisch und
-meldet das seriell.
+The firmware only draws pixels inside the circle defined by `DISPLAY_VISIBLE_CENTER_X/Y` and
+`DISPLAY_VISIBLE_RADIUS` (default 120/120, r = 120). If your pumpkin covers the edge, you can
+reduce the radius. If an eye lies partly outside, it is cut off cleanly. There are no memory
+accesses outside valid ranges, because the row spans are clipped to the display and the circle
+in advance. The firmware limits extreme values for `scale`/`radius` automatically and reports
+this on the serial monitor.
 
 ---
 
-## 10. Farben, Leuchten, Animation
+## 10. Colours, glow, animation
 
-### 10.1 Farben
+### 10.1 Colours
 
-Alle Farben stehen als `0xRRGGBB` in `Config.h`, Abschnitt *COLOURS*:
+All colours are defined as `0xRRGGBB` in `Config.h`, section *COLOURS*:
 
-| Konstante | Teil des Auges | Standard |
+| Constant | Part of the eye | Default |
 |---|---|---|
-| `COLOR_BACKGROUND` | alles außerhalb des Auges | Schwarz |
-| `COLOR_LID_RIM` | glühende Lidkante, Lidnaht beim Schlafen | Orange-Rot |
-| `COLOR_HALO` | Schein rund um die Augenöffnung | dunkles Rot |
-| `COLOR_SCLERA_CENTER` / `_EDGE` | Augapfel, Mitte und Rand | dunkles Blutrot → fast Schwarz |
-| `COLOR_IRIS_INNER` / `_MID` / `_OUTER` / `_RIM` | Iris von innen nach außen | Gelb-Orange → Orange → Blutrot → dunkles Violett-Rot |
-| `COLOR_PUPIL` | Pupille | Schwarz |
-| `COLOR_PUPIL_CORE` | glühender Pupillenkern (EVIL_GLARE) | dunkles Violett-Rot |
-| `COLOR_GLOW` | Licht rund um die Pupille | helles Gelb |
-| `COLOR_HIGHLIGHT` | Lichtreflexe | warmes Weiß |
+| `COLOR_BACKGROUND` | everything outside the eye | black |
+| `COLOR_LID_RIM` | glowing lid edge, lid seam while asleep | orange-red |
+| `COLOR_HALO` | glow around the eye opening | dark red |
+| `COLOR_SCLERA_CENTER` / `_EDGE` | eyeball, centre and edge | dark blood red → almost black |
+| `COLOR_IRIS_INNER` / `_MID` / `_OUTER` / `_RIM` | iris from inside to outside | yellow-orange → orange → blood red → dark violet-red |
+| `COLOR_PUPIL` | pupil | black |
+| `COLOR_PUPIL_CORE` | glowing pupil core (EVIL_GLARE) | dark violet-red |
+| `COLOR_GLOW` | light around the pupil | bright yellow |
+| `COLOR_HIGHLIGHT` | light reflexes | warm white |
 
-Beispiel für **grüne Hexenaugen**: `COLOR_IRIS_INNER = 0xD8FF40`, `COLOR_IRIS_MID = 0x60E000`,
+Example for **green witch eyes**: `COLOR_IRIS_INNER = 0xD8FF40`, `COLOR_IRIS_MID = 0x60E000`,
 `COLOR_IRIS_OUTER = 0x108000`, `COLOR_GLOW = 0xF0FFB0`, `COLOR_HALO = 0x0A5000`,
 `COLOR_LID_RIM = 0x60FF20`.
 
-### 10.2 Leuchten
+### 10.2 Glow
 
-| Konstante | Wirkung |
+| Constant | Effect |
 |---|---|
-| `GLOW_INTENSITY_SCALE` | Gesamthelligkeit aller leuchtenden Teile |
-| `GLOW_PUPIL_STRENGTH` | Licht um die Pupille |
-| `GLOW_HALO_STRENGTH`, `GLOW_RIM_STRENGTH` | Halo bzw. Lidkante |
-| `GLOW_FLICKER_AMOUNT` | glutartiges Flackern (0 = ruhig) |
-| `GLOW_FIRE_RINGS`, `GLOW_FIRE_AMOUNT`, `GLOW_FIRE_SPEED` | nach außen wandernde Feuerringe in der Iris |
-| `GLOW_IDLE`, `GLOW_STARE`, `GLOW_EVIL`, `GLOW_SLEEP` | Leuchtstärke je Zustand |
-| `BACKLIGHT_BRIGHTNESS` | Hintergrundbeleuchtung (nur mit angeschlossenem BL-Pin) |
+| `GLOW_INTENSITY_SCALE` | overall brightness of all glowing parts |
+| `GLOW_PUPIL_STRENGTH` | light around the pupil |
+| `GLOW_HALO_STRENGTH`, `GLOW_RIM_STRENGTH` | halo and lid edge |
+| `GLOW_FLICKER_AMOUNT` | ember-like flicker (0 = steady) |
+| `GLOW_FIRE_RINGS`, `GLOW_FIRE_AMOUNT`, `GLOW_FIRE_SPEED` | fire rings moving outwards through the iris |
+| `GLOW_IDLE`, `GLOW_STARE`, `GLOW_EVIL`, `GLOW_SLEEP` | glow strength per state |
+| `BACKLIGHT_BRIGHTNESS` | backlight (only with the BL pin connected) |
 
-Das Leuchten entsteht über Farbverläufe in Lookup-Tabellen, nicht über aufwendige
-Pixeloperationen ([Abschnitt 12](#12-rendering-performance-speicher)).
+The glow is produced by colour gradients in lookup tables, not by expensive per-pixel effects
+([section 12](#12-rendering-performance-memory)).
 
-### 10.3 Geschwindigkeit
+### 10.3 Speed
 
-| Konstante | Wirkung |
+| Constant | Effect |
 |---|---|
-| `ANIM_GAZE_SPEED` | Faktor für **alle** Augenbewegungen (0,7 = 30 % schneller, 1,5 = träger) |
-| `ANIM_PUPIL_SPEED` | Faktor für Pupillenänderungen |
-| `SACCADE_BASE_MS`, `SACCADE_MS_PER_UNIT` | schnelle Blicksprünge |
-| `GLIDE_MS_MIN/MAX` | langsame, schleichende Blicke |
-| `SNAP_MS` | aggressives Zucken mit Überschwingen |
-| `MICRO_SACCADE_*` | winzige Fixationsbewegungen |
-| `BLINK_*` | Dauer jeder Blinzelart, Intervall `BLINK_INTERVAL_MIN/MAX_MS`, `DOUBLE_BLINK_CHANCE` |
-| `OPENNESS_MIN/MAX` | Bereich der normalen Augenöffnung (ohne Blinzeln und Schlafen) |
-| `IDLE_OPENNESS_MIN/MAX` | Augenöffnung im Ruhezustand IDLE (Standard 0,70–0,82; kleiner = schläfriger, lauernder Blick) |
-| `*_MS_MIN/MAX` | Dauer jedes Zustands |
-| `RANDOM_SEED` | 0 = jedes Mal anders, sonst reproduzierbarer Ablauf |
+| `ANIM_GAZE_SPEED` | factor for **all** eye movements (0.7 = 30 % faster, 1.5 = more sluggish) |
+| `ANIM_PUPIL_SPEED` | factor for pupil changes |
+| `SACCADE_BASE_MS`, `SACCADE_MS_PER_UNIT` | quick gaze jumps |
+| `GLIDE_MS_MIN/MAX` | slow, creeping looks |
+| `SNAP_MS` | aggressive twitch with overshoot |
+| `MICRO_SACCADE_*` | tiny fixation movements |
+| `BLINK_*` | duration of each blink type, interval `BLINK_INTERVAL_MIN/MAX_MS`, `DOUBLE_BLINK_CHANCE` |
+| `OPENNESS_MIN/MAX` | range of normal eye opening (excluding blinking and sleeping) |
+| `IDLE_OPENNESS_MIN/MAX` | eye opening in the IDLE state (default 0.70–0.82; lower = sleepier, lurking look) |
+| `*_MS_MIN/MAX` | duration of each state |
+| `RANDOM_SEED` | 0 = different every time, otherwise a reproducible sequence |
 
-### 10.4 Verhalten und Zustände
+### 10.4 Behaviour and states
 
-| Zustand | Verhalten |
+| State | Behaviour |
 |---|---|
-| `IDLE` | ruhiger, lebendiger Blick, langsames Driften, gelegentliche Blicksprünge; manchmal eine **unheimliche Ruhephase** (keine Mikrobewegung, kein Blinzeln), die mit einem plötzlichen Sprung endet |
-| `LOOK_AROUND` | Blicke in alle Richtungen (links, rechts, oben, unten, diagonal, Mitte, Zwischenpositionen) als schnelle Sakkaden, schleichendes Gleiten oder aggressives Zucken |
-| `BLINK` | Blinzeln: normal, schnell, lang geschlossen oder schwer und langsam |
-| `DOUBLE_BLINK` | zweimal schnell |
-| `STARE` | weit offen, Pupillen verengen sich zum Schlitz, eingefrorener Blick, leichtes Schielen zur Mitte, einmaliges Pulsieren der Pupille |
-| `EVIL_GLARE` | plötzliches Zucken, schräge abgesenkte Lider, Schlitz- **oder** plötzlich riesige Pupille, glühender Pupillenkern, flackerndes Glühen, einzelnes Lidzucken nur eines Auges |
-| `SLEEP` | Lider sinken, öffnen sich noch einmal widerwillig, dann schließen sie sich ganz; die Lidnaht glimmt und „atmet“ |
-| `WAKE_UP` | langsames Öffnen, weite Pupillen, Doppelblinzeln, erster Blick |
+| `IDLE` | calm, lively gaze with slow drifting and occasional gaze jumps; sometimes an **eerie still phase** (no micro movement, no blinking) that ends with a sudden jump |
+| `LOOK_AROUND` | glances in all directions (left, right, up, down, diagonal, centre, positions in between) as quick saccades, slow creeping glides or aggressive twitches |
+| `BLINK` | blink: normal, fast, closed for a while, or heavy and slow |
+| `DOUBLE_BLINK` | two quick blinks |
+| `STARE` | wide open, pupils narrow to slits, frozen gaze, slight cross-eyed convergence, one pulse of the pupils |
+| `EVIL_GLARE` | sudden twitch, slanted lowered lids, slit pupil **or** suddenly huge pupil, glowing pupil core, flickering glow, single lid twitch on one eye only |
+| `SLEEP` | lids droop, reluctantly open once more, then close completely; the lid seam smoulders and "breathes" |
+| `WAKE_UP` | slow opening, wide pupils, double blink, first look around |
 
-Die Übergänge stehen als Gewichtsmatrix `TRANSITION_WEIGHTS` in `Config.h` (Zeile = aktueller
-Zustand, Spalte = nächster Zustand). Willst du z. B. mehr böse Blicke, erhöhe die Werte in der
-Spalte `EVIL`. Soll der Kürbis nie schlafen, setze die Spalte `SLEEP` auf 0.
+The transitions are defined as the weight matrix `TRANSITION_WEIGHTS` in `Config.h`
+(row = current state, column = next state). For more evil glares, for example, raise the
+values in the `EVIL` column. If the pumpkin should never sleep, set the `SLEEP` column to 0.
 
-**Lebendigkeit:** Beide Augen bekommen dieselben Befehle mit kleinen zufälligen Verzögerungen
-(`EYE_LAG_MS_MAX`). Mit der Wahrscheinlichkeit `EYE_INDEPENDENT_CHANCE` reagiert ein Auge
-deutlich verzögert und leicht versetzt, also kurz unabhängig. Pupillengröße und Glühen
-schwanken pro Auge minimal.
+**Liveliness:** both eyes receive the same commands with small random delays
+(`EYE_LAG_MS_MAX`). With probability `EYE_INDEPENDENT_CHANCE`, one eye reacts noticeably later
+and slightly offset, i.e. briefly on its own. Pupil size and glow vary minimally per eye.
 
 ---
 
-## 11. Software-Architektur
+## 11. Software architecture
 
 ```
 src/
-├─ Config.h                 zentrale Konfiguration (Hardware, Geometrie, Farben, Animation)
-├─ main.cpp                 setup()/loop(), Moduswahl, Frame-Limiter
-├─ App.h/.cpp               Objektverbund + FPS-/Zeitstatistik
+├─ Config.h                 central configuration (hardware, geometry, colours, animation)
+├─ main.cpp                 setup()/loop(), mode selection, frame limiter
+├─ App.h/.cpp               object bundle + FPS/timing statistics
 │
-├─ DisplayManager.h/.cpp    Display-Initialisierung (LovyanGFX), gemeinsamer Bus/Reset, DMA-Strips
-├─ EyeGeometry.h/.cpp       EyeTransform (lokal ↔ Display), EyeShape, Zeilenbereiche, Pupillengrenze
-├─ EyeRenderer.h/.cpp       prozedurales Rendering in Festkomma, Doppelpuffer-DMA
-├─ EyePalette.h/.cpp        Farbverläufe → RGB565-Lookup-Tabellen (Leuchten, Flackern, Feuerringe)
+├─ DisplayManager.h/.cpp    display init (LovyanGFX), shared bus/reset, DMA strips
+├─ EyeGeometry.h/.cpp       EyeTransform (local ↔ display), EyeShape, row spans, pupil limits
+├─ EyeRenderer.h/.cpp       procedural fixed-point rendering, double-buffered DMA
+├─ EyePalette.h/.cpp        colour gradients → RGB565 lookup tables (glow, flicker, fire rings)
 │
-├─ EyeState.h               Schnittstelle Animation → Renderer (lokal, normiert, ohne Geometrie)
-├─ Eye.h/.cpp               Augenmodell: kombiniert die drei Controller
-├─ GazeController.h/.cpp    Augenbewegung (Sakkaden, Gleiten, Mikrobewegungen)
-├─ BlinkController.h/.cpp   Blinzeln, Augenöffnung, Lidspannung („anger“)
-├─ PupilController.h/.cpp   Pupillengröße/-form, Glühen, Hippus, Flackern
-├─ AnimationController.h/.cpp  Zustandsautomat für beide Augen
-├─ Tween.h/.cpp             Easing-Kurven + zeitbasierter Wertanimator (millis())
-├─ Random.h/.cpp            xorshift32-Zufall, gewichtete Auswahl
+├─ EyeState.h               interface animation → renderer (local, normalised, no geometry)
+├─ Eye.h/.cpp               eye model: combines the three controllers
+├─ GazeController.h/.cpp    eye movement (saccades, glides, micro movements)
+├─ BlinkController.h/.cpp   blinking, eye opening, lid tension ("anger")
+├─ PupilController.h/.cpp   pupil size/shape, glow, hippus, flicker
+├─ AnimationController.h/.cpp  state machine for both eyes
+├─ Tween.h/.cpp             easing curves + time-based value animator (millis())
+├─ Random.h/.cpp            xorshift32 random numbers, weighted choice
 │
-├─ Calibration.h/.cpp       Kalibriermodus + Overlay- und Orientierungsbilder
-└─ TestMode.h/.cpp          Hardware-Diagnose-Ablauf
+├─ Calibration.h/.cpp       calibration mode + overlay and orientation screens
+└─ TestMode.h/.cpp          hardware diagnostic sequence
 ```
 
-**Datenfluss pro Frame:**
+**Data flow per frame:**
 
 ```
-AnimationController ──Befehle──► Eye (Gaze/Blink/Pupil-Controller) ──► EyeRenderState (lokal, normiert)
+AnimationController ──commands──► Eye (gaze/blink/pupil controllers) ──► EyeRenderState (local, normalised)
                                                                             │
-EyeGeometryConfig ──► EyeGeometry (Transform, Spans) ──────────────────► EyeRenderer ──► DisplayManager ──DMA──► GC9A01
+EyeGeometryConfig ──► EyeGeometry (transform, spans) ──────────────────► EyeRenderer ──► DisplayManager ──DMA──► GC9A01
 ```
 
-- **Geometrie und Animation sind getrennt:** Die Animation kennt nur `EyeRenderState` mit
-  normierten, lokalen Werten. Position, Größe, Drehung und Spiegelung leben ausschließlich in
-  `EyeGeometry` und wirken erst im Renderer.
-- **Nichts blockiert:** Alle Zeitabläufe vergleichen `millis()`-Zeitstempel. `delay()` kommt nur
-  in `setup()` vor (Reset-Puls der Displays), nie im Animationsablauf.
-- **Erweitern:** Ein neuer Zustand braucht einen Eintrag in `AnimState`, je eine
-  `enter…/update…`-Funktion in `AnimationController.cpp` und, falls er automatisch gewählt
-  werden soll, eine Zeile und Spalte in `TRANSITION_WEIGHTS`.
+- **Geometry and animation are separate:** the animation only knows `EyeRenderState` with
+  normalised, local values. Position, size, rotation and mirroring live exclusively in
+  `EyeGeometry` and only take effect in the renderer.
+- **Nothing blocks:** all timing compares `millis()` timestamps. `delay()` only appears in
+  `setup()` (display reset pulse), never in the animation loop.
+- **Extending:** a new state needs an entry in `AnimState`, an `enter…/update…` function pair in
+  `AnimationController.cpp` and, if it should be chosen automatically, a row and column in
+  `TRANSITION_WEIGHTS`.
 
 ---
 
-## 12. Rendering, Performance, Speicher
+## 12. Rendering, performance, memory
 
-### 12.1 Strategie
+### 12.1 Strategy
 
-Ein RGB565-Vollbild kostet 115 200 B pro Display. Zwei davon passen nicht sinnvoll in den
-Speicher. Außerdem bräuchte die Übertragung beider Vollbilder bei 40 MHz rund 46 ms, das wären
-höchstens etwa 21 FPS. Die Firmware arbeitet deshalb **ohne Framebuffer**:
+An RGB565 full frame costs 115,200 B per display. Two of them do not fit sensibly into memory.
+On top of that, transferring both full frames at 40 MHz would take about 46 ms, which limits the
+frame rate to roughly 21 FPS. The firmware therefore works **without a frame buffer**:
 
-1. **Zeilenbereiche (Spans):** Beim Start berechnet `EyeGeometry` für jede Displayzeile, welcher
-   x-Bereich vom (gedrehten, skalierten) Auge samt Halo überhaupt berührt werden kann. Das
-   Ergebnis wird auf Display und sichtbaren Kreis begrenzt. Nur dieser Bereich wird je Frame neu
-   gezeichnet, der schwarze Rest wird nie wieder übertragen. Mit der Standardgeometrie sind das
-   etwa **30 500 Pixel pro Auge** statt 57 600.
-2. **Streifen mit Doppelpuffer:** Gezeichnet wird in zwei Streifen à 8 Zeilen
-   (je 240 × 8 × 2 B = 3,8 KB). Während der eine per **DMA** zum Display läuft, berechnet die CPU
-   den nächsten.
-3. **Inverse Transformation, Festkomma:** Für jeden Pixel liefert die inverse affine Abbildung
-   die lokale Augenkoordinate. Weil die Abbildung affin ist, kostet das nur **zwei Additionen
-   pro Pixel**, egal wie stark das Auge gedreht oder skaliert ist. Beliebige Winkel sind damit
-   ohne Mehraufwand möglich. Der ESP32-C3 hat **keine FPU**, deshalb rechnet die Pixelschleife
-   rein in 32-Bit-Festkomma. Floats kommen nur einmal pro Frame für die Koeffizienten zum
-   Einsatz.
-4. **Lookup-Tabellen statt Pixel-Effekten:** Iris-Glühen, Halo, Lidkante, Augapfel und
-   Pupillenkern sind kleine RGB565-Tabellen, die einmal pro Frame aus den Farben in `Config.h`
-   erzeugt werden (nur Integer-Arithmetik). Der Pixel liest nur noch einen Tabellenwert.
-   Alpha-Mischung gibt es nur an wenigen Stellen (Pupillenrand, Lichtreflexe, Lidschatten).
-5. **Kein Flackern:** Jeder Pixel wird pro Frame genau einmal mit seiner endgültigen Farbe
-   übertragen. Es gibt kein „Löschen und neu zeichnen“.
-6. Die Pixelschleife liegt im IRAM, kompiliert wird mit `-O2`.
+1. **Row spans:** At start-up, `EyeGeometry` computes for every display row which x range the
+   (rotated, scaled) eye including its halo can touch at all. The result is clipped to the
+   display and the visible circle. Only this area is redrawn each frame; the black rest is never
+   sent again. With the default geometry this is about **30,500 pixels per eye** instead of
+   57,600.
+2. **Double-buffered strips:** Drawing happens in two strips of 8 rows each
+   (240 × 8 × 2 B = 3.8 KB each). While one strip is sent to the display via **DMA**, the CPU
+   computes the next one.
+3. **Inverse transformation, fixed point:** For every pixel, the inverse affine mapping yields
+   the local eye coordinate. Because the mapping is affine, this costs only **two additions per
+   pixel**, no matter how far the eye is rotated or scaled, so arbitrary angles come at no extra
+   cost. The ESP32-C3 has **no FPU**, so the pixel loop uses 32-bit fixed point only. Floats are
+   used just once per frame to compute the coefficients.
+4. **Lookup tables instead of per-pixel effects:** Iris glow, halo, lid edge, eyeball and pupil
+   core are small RGB565 tables, generated once per frame from the colours in `Config.h`
+   (integer arithmetic only). Each pixel just reads a table entry. Alpha blending is used in
+   only a few places (pupil edge, light reflexes, lid shadow).
+5. **No flicker:** Every pixel is sent exactly once per frame with its final colour. There is no
+   "clear and redraw".
+6. The pixel loop lives in IRAM, and the code is compiled with `-O2`.
 
 ### 12.2 Performance
 
-Auf dem Referenzaufbau läuft die Animation mit dem Standard-Limit `TARGET_FPS = 24` flüssig
-(SPI 40 MHz, Standardgeometrie). Pro Frame werden etwa 61 000 Pixel (2 Augen) berechnet und
-übertragen, bei 40 MHz allein für die SPI-Übertragung rund 24 ms.
+On the reference build the animation runs smoothly at the default limit `TARGET_FPS = 24`
+(SPI 40 MHz, default geometry). Each frame computes and transfers about 61,000 pixels (two
+eyes); at 40 MHz the SPI transfer alone takes about 24 ms.
 
-Die tatsächlichen Werte gibt die Firmware im Animations- und Testmodus alle 5 s aus
-(`[stats] … fps | frame avg … | render L … R …`). Willst du mehr Bildrate, helfen:
-- `scale` leicht verkleinern (die Pixelzahl sinkt quadratisch),
-- `EYE_HALO_WIDTH` verringern,
-- 80 MHz ausprobieren (nächster Abschnitt), danach `TARGET_FPS` erhöhen.
+The firmware prints the actual values every 5 s in animation and test mode
+(`[stats] … fps | frame avg … | render L … R …`). For a higher frame rate, try:
+- reducing `scale` slightly (the pixel count drops quadratically),
+- reducing `EYE_HALO_WIDTH`,
+- 80 MHz (next section), then raising `TARGET_FPS`.
 
-Starke Drehungen kosten **nicht** mehr Pixel, weil die Spans der gedrehten Ellipse folgen.
+Strong rotations do **not** cost extra pixels, because the spans follow the rotated ellipse.
 
-### 12.3 Turbo: 80 MHz SPI (ungetestet)
+### 12.3 Turbo: 80 MHz SPI (untested)
 
 ```cpp
 constexpr uint32_t SPI_WRITE_FREQ_HZ = 80000000;
 constexpr bool     SPI_FORCE_IOMUX   = true;
 ```
 
-Hintergrund: Der Arduino-SPI-Treiber leitet die Pins über die GPIO-Matrix, die laut ESP-IDF für
-40 MHz spezifiziert ist. `SPI_FORCE_IOMUX` schaltet GPIO6/GPIO7 nach dem Init auf den direkten
-IO_MUX-Pfad um (`gpio_iomux_out`), so wie es ESP-IDF selbst für native Pins tut. Ob dein
-Display-Modul (Panel, Leitungslänge, Verdrahtung) 80 MHz sauber mitmacht, lässt sich nur
-ausprobieren. Zeigt sich Bildrauschen, zurück auf 40 MHz. Kurze Leitungen helfen.
+Background: the Arduino SPI driver routes the pins through the GPIO matrix, which ESP-IDF
+specifies for 40 MHz. After init, `SPI_FORCE_IOMUX` switches GPIO6/GPIO7 to the direct IO_MUX
+path (`gpio_iomux_out`), just as ESP-IDF itself does for native pins. Whether your display
+module (panel, wire length, wiring) handles 80 MHz cleanly can only be found out by trying. If
+you see noise, go back to 40 MHz. Short wires help.
 
-### 12.4 Speicher
+### 12.4 Memory
 
-| Posten | Größe |
+| Item | Size |
 |---|---|
-| statischer RAM gesamt (laut Build, inkl. Arduino-Core) | 33 220 B von 327 680 B |
-| DMA-Streifenpuffer | 2 × 3 840 B = 7,5 KB |
-| Farbtabellen pro Auge | ≈ 2,4 KB |
-| Zeilenbereiche pro Auge | 960 B |
-| LovyanGFX-DMA-Zeilenpuffer | ≈ 480 B pro Panel |
-| Vollbild-Framebuffer | **keiner** (würde 115 KB pro Display kosten) |
-| dynamische Allokationen im Animationsablauf | **keine** |
+| total static RAM (per build output, incl. Arduino core) | 33,220 B of 327,680 B |
+| DMA strip buffers | 2 × 3,840 B = 7.5 KB |
+| colour tables per eye | ≈ 2.4 KB |
+| row spans per eye | 960 B |
+| LovyanGFX DMA line buffer | ≈ 480 B per panel |
+| full-frame buffer | **none** (would cost 115 KB per display) |
+| dynamic allocations in the animation loop | **none** |
 
 ---
 
-## 13. Bekannte Einschränkungen
+## 13. Known limitations
 
-- **Kein Tearing-Schutz:** Die GC9A01-Module führen den TE-Pin meist nicht heraus. Bei sehr
-  schnellen Blicksprüngen kann kurz eine waagerechte Kante sichtbar sein (Tearing, kein
-  Flackern).
-- **Kein Lesezugriff auf die Displays:** Ohne MISO lässt sich nicht prüfen, ob ein Display
-  wirklich angeschlossen ist. „init sequence sent“ im Log heißt nur, dass gesendet wurde. Den
-  Nachweis liefert der Farbtest.
-- **80 MHz SPI und `SPI_FORCE_IOMUX` sind ungetestet** und deshalb standardmäßig aus.
-- **Lid-Abstände sind angenähert:** Der Abstand zur Lidkante wird senkrecht im lokalen System
-  gemessen, hinter den Augenwinkeln mit einer Rautenmetrik. Bei sehr schmalen Augen wirkt der
-  Lidrand an den Spitzen etwas dünner.
-- **Gemeinsames Backlight:** Beide Displays haben immer dieselbe Hintergrundhelligkeit.
-- **Wertebereiche:** `scale` 0,1–4, `radiusX/Y` 8–400, `center` −240…480, `offset` ±240, Seitenverhältnis `radiusY` zwischen
-  `radiusX/3` und `1,5 × radiusX`. Die Firmware begrenzt außerhalb liegende Werte und meldet das
-  seriell.
-- **`DISPLAY_ROTATION` 4–7** spiegeln über die Panel-Hardware. Sie sind unabhängig von
-  `mirrorX/Y`, und beides zusammen kann verwirren. Für die normale Ausrichtung reichen 0–3.
+- **No tearing protection:** GC9A01 modules usually do not expose the TE pin. During very fast
+  gaze jumps, a horizontal edge may briefly be visible (tearing, not flicker).
+- **No read access to the displays:** without MISO there is no way to check whether a display is
+  actually connected. "init sequence sent" in the log only means it was sent. The colour test
+  provides the proof.
+- **80 MHz SPI and `SPI_FORCE_IOMUX` are untested** and therefore off by default.
+- **Lid distances are approximated:** the distance to the lid edge is measured vertically in the
+  local frame, and with a diamond metric beyond the eye corners. With very narrow eyes, the lid
+  rim looks a little thinner at the tips.
+- **Shared backlight:** both displays always have the same backlight brightness.
+- **Value ranges:** `scale` 0.1–4, `radiusX/Y` 8–400, `center` −240…480, `offset` ±240, aspect
+  ratio `radiusY` between `radiusX/3` and `1.5 × radiusX`. The firmware limits values outside
+  these ranges and reports this on the serial monitor.
+- **`DISPLAY_ROTATION` 4–7** mirror via the panel hardware. They are independent of
+  `mirrorX/Y`, and combining both can be confusing. Values 0–3 are enough for normal
+  orientations.
 
 ---
 
-*Hardware-Referenzen:
+*Hardware references:
 [Seeed Wiki XIAO ESP32-C3](https://wiki.seeedstudio.com/XIAO_ESP32C3_Getting_Started/) ·
 [ESP-IDF SPI Master (ESP32-C3)](https://docs.espressif.com/projects/esp-idf/en/v4.4.7/esp32c3/api-reference/peripherals/spi_master.html) ·
 [Waveshare 1.28" LCD Module](https://www.waveshare.com/wiki/1.28inch_LCD_Module) ·
